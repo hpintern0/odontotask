@@ -72,18 +72,20 @@ export async function publishTaskToNotion(task: Task & { meeting: { tldvUrl: str
       { label: `Notion publish "${task.titulo}"`, maxRetries: 3 }
     );
 
+    const notionUrl = `https://www.notion.so/${page.id.replace(/-/g, "")}`;
+
     await prisma.task.update({
       where: { id: task.id },
       data: {
         notionPageId: page.id,
-        notionUrl: (page as unknown as { url: string }).url,
+        notionUrl,
         status: "PUBLISHED",
         publishedAt: new Date(),
       },
     });
 
-    console.log(`[NotionPublisher] Tarefa "${task.titulo}" publicada com sucesso: ${(page as unknown as { url: string }).url}`);
-    return { success: true, notionUrl: (page as unknown as { url: string }).url };
+    console.log(`[NotionPublisher] Tarefa "${task.titulo}" publicada com sucesso: ${notionUrl}`);
+    return { success: true, notionUrl };
   } catch (error) {
     console.error(`[NotionPublisher] Erro ao publicar "${task.titulo}":`, error);
 

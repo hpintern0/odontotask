@@ -28,14 +28,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/lib/generated ./lib/generated
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
-COPY --from=deps /app/node_modules/typescript ./node_modules/typescript
-COPY --from=deps /app/node_modules/tsx ./node_modules/tsx
-COPY --from=deps /app/node_modules/dotenv ./node_modules/dotenv
+COPY --from=builder /app/lib/generated ./lib/generated
+
+# Copy ALL node_modules for prisma migrate + runtime deps (pg, @prisma/adapter-pg, etc.)
+COPY --from=deps /app/node_modules ./node_modules
 
 COPY start.sh ./start.sh
 RUN chmod +x start.sh
