@@ -22,42 +22,49 @@ export async function publishTaskToNotion(task: Task & { meeting: { tldvUrl: str
 
   console.log(`[NotionPublisher] Publicando tarefa "${task.titulo}" no Notion...`);
 
+  // Build properties matching the existing "Tarefas da Equipe" database structure
   const properties: Record<string, unknown> = {
-    "Nome da Tarefa": {
+    // Title field (existing)
+    "Tarefa": {
       title: [{ text: { content: task.titulo } }],
     },
-    "Responsável": {
+    // Status field (existing) - map to "Pendente" as default
+    "Status": {
+      status: { name: "Pendente" },
+    },
+    // Cargo Responsável (new select field - since Responsável is people type)
+    "Cargo Responsável": {
       select: { name: RESPONSAVEL_LABELS[task.responsavel] || task.responsavel },
     },
+    // Descrição (new rich_text field)
     "Descrição": {
       rich_text: [{ text: { content: task.descricao.slice(0, 2000) } }],
     },
+    // Prioridade (new select field)
     "Prioridade": {
       select: { name: task.prioridade === "alta" ? "Alta" : task.prioridade === "media" ? "Média" : "Baixa" },
     },
-    "Status": {
-      status: { name: "A Fazer" },
-    },
+    // Confiança IA (new select field)
     "Confiança IA": {
       select: { name: task.confiancaIA === "alta" ? "Alta" : task.confiancaIA === "media" ? "Média" : "Baixa" },
     },
-    "Cliente": {
-      select: { name: task.cliente },
-    },
   };
 
+  // Prazo (existing date field)
   if (task.prazo) {
     properties["Prazo"] = {
       date: { start: new Date(task.prazo).toISOString().split("T")[0] },
     };
   }
 
+  // Reunião de Origem (new URL field)
   if (task.meeting.tldvUrl) {
     properties["Reunião de Origem"] = {
       url: task.meeting.tldvUrl,
     };
   }
 
+  // Data da Reunião (new date field)
   properties["Data da Reunião"] = {
     date: { start: new Date(task.meeting.date).toISOString().split("T")[0] },
   };
