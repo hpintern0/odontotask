@@ -1,8 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import { withRetry } from "@/lib/retry";
-import type { TldvMeeting, TldvTranscript } from "@/packages/types";
+import type { TldvMeeting } from "@/packages/types";
 
-const TLDV_BASE_URL = "https://api.tldv.io/v1alpha1";
+const TLDV_BASE_URL = "https://pasta.tldv.io/v1alpha1";
+
+interface TldvApiMeeting {
+  id: string;
+  name: string;
+  happenedAt: string;
+  duration: number;
+  url: string;
+  invitees: { name?: string; email?: string }[];
+  organizer: { name: string; email: string };
+}
+
+interface TldvTranscriptResponse {
+  id: string;
+  meetingId: string;
+  data: { startTime: number; endTime: number; speaker: string; text: string }[];
+}
 
 async function tldvFetch<T>(path: string): Promise<T> {
   return withRetry(
@@ -12,7 +28,7 @@ async function tldvFetch<T>(path: string): Promise<T> {
 
       const res = await fetch(`${TLDV_BASE_URL}${path}`, {
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          "x-api-key": apiKey,
           "Content-Type": "application/json",
         },
       });
@@ -27,22 +43,22 @@ async function tldvFetch<T>(path: string): Promise<T> {
   );
 }
 
-export async function fetchMeetings(): Promise<TldvMeeting[]> {
+export async function fetchMeetings(): Promise<TldvApiMeeting[]> {
   console.log(`[TranscriptionFetcher] Buscando reuniões do TLDV...`);
-  const data = await tldvFetch<{ results: TldvMeeting[] }>("/meetings");
+  const data = await tldvFetch<{ results: TldvApiMeeting[] }>("/meetings?limit=20");
   console.log(`[TranscriptionFetcher] ${data.results.length} reuniões encontradas`);
   return data.results;
 }
 
 export async function fetchTranscript(meetingId: string): Promise<string> {
   console.log(`[TranscriptionFetcher] Buscando transcrição da reunião ${meetingId}...`);
-  const data = await tldvFetch<TldvTranscript>(`/meetings/${meetingId}/transcript`);
+  const data = await tldvFetch<TldvTranscriptResponse>(`/meetings/${meetingId}/transcript`);
 
-  const fullText = data.segments
+  const fullText = data.data
     .map((s) => `[${s.speaker}]: ${s.text}`)
     .join("\n");
 
-  console.log(`[TranscriptionFetcher] Transcrição obtida: ${fullText.length} caracteres`);
+  console.log(`[TranscriptionFetcher] Transcrição obtida: ${fullText.length} caracteres, ${data.data.length} segmentos`);
   return fullText;
 }
 
@@ -56,15 +72,21 @@ export async function fetchAndStoreMeeting(tldvMeetingId: string) {
     return existing;
   }
 
-  const meetingData = await tldvFetch<TldvMeeting>(`/meetings/${tldvMeetingId}`);
+  const meetingData = await tldvFetch<TldvApiMeeting>(`/meetings/${tldvMeetingId}`);
   const transcript = await fetchTranscript(tldvMeetingId);
+
+  // Build participants list from organizer + invitees
+  const participants = [meetingData.organizer.name];
+  for (const inv of meetingData.invitees) {
+    if (inv.name) participants.push(inv.name);
+  }
 
   const meeting = await prisma.meeting.create({
     data: {
       tldvId: tldvMeetingId,
-      title: meetingData.title,
-      date: new Date(meetingData.started_at),
-      participants: meetingData.participants.map((p) => p.name),
+      title: meetingData.name,
+      date: new Date(meetingData.happenedAt),
+      participants,
       transcriptRaw: transcript,
       tldvUrl: meetingData.url,
       status: "PENDING",
@@ -88,7 +110,7 @@ export async function pollNewMeetings() {
       });
 
       if (!exists) {
-        console.log(`[TranscriptionFetcher] Nova reunião encontrada: ${meeting.title}`);
+        console.log(`[TranscriptionFetcher] Nova reunião encontrada: ${meeting.name}`);
         await fetchAndStoreMeeting(meeting.id);
       }
     }
