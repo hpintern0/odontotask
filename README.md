@@ -1,36 +1,128 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OdontoTask
 
-## Getting Started
+Sistema de gestao de tarefas para assessoria de marketing odontologico. Capta transcricoes de reunioes via TLDV, extrai tarefas com IA (Claude) e envia para o Notion.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Frontend:** Next.js 14 (App Router) + TypeScript + Tailwind CSS
+- **IA:** Anthropic Claude API (claude-sonnet-4-20250514)
+- **Banco:** PostgreSQL com Prisma ORM
+- **Integracoes:** TLDV API + Notion API
+- **Deploy:** Railway
+
+## Fluxo
+
+1. Reuniao gravada no TLDV
+2. Sistema busca transcricao (webhook ou polling)
+3. IA extrai TODAS as tarefas em 3 passagens
+4. Supervisor revisa, edita e aprova tarefas no dashboard
+5. Tarefas aprovadas sao publicadas no Notion
+
+## Deploy no Railway
+
+### 1. Criar projeto no Railway
+
+- Crie um novo projeto no Railway
+- Adicione um servico PostgreSQL
+- Conecte este repositorio como servico
+
+### 2. Variaveis de ambiente
+
+Configure no painel do Railway:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+TLDV_API_KEY=...
+TLDV_WEBHOOK_SECRET=...
+NOTION_API_KEY=secret_...
+NOTION_DATABASE_ID=...
+DATABASE_URL=(fornecido automaticamente pelo Railway PostgreSQL)
+NEXTAUTH_SECRET=(gere com: openssl rand -base64 32)
+NEXTAUTH_URL=https://seu-app.railway.app
+NEXT_PUBLIC_APP_URL=https://seu-app.railway.app
+TLDV_POLLING_INTERVAL=30
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Deploy
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+O Railway detecta automaticamente o `railway.json` e executa:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Build:** `npx prisma generate && npm run build`
+- **Start:** `npm start`
 
-## Learn More
+### 4. Migrar banco de dados
 
-To learn more about Next.js, take a look at the following resources:
+Apos o primeiro deploy, execute no Railway CLI:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+railway run npx prisma migrate dev --name init
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Desenvolvimento local
 
-## Deploy on Vercel
+### Pre-requisitos
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Node.js 18+
+- Docker (para PostgreSQL local)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Setup
+
+```bash
+# Instalar dependencias
+npm install
+
+# Subir PostgreSQL local
+docker-compose up -d
+
+# Copiar variaveis de ambiente
+cp .env.example .env
+# Editar .env com suas chaves
+
+# Gerar Prisma Client
+npx prisma generate
+
+# Rodar migracoes
+npx prisma migrate dev --name init
+
+# Iniciar dev server
+npm run dev
+```
+
+Abra http://localhost:3000
+
+## Configuracao do Notion
+
+Crie um database no Notion com as seguintes propriedades:
+
+| Propriedade | Tipo |
+|---|---|
+| Nome da Tarefa | Title |
+| Responsavel | Select (Estrategista, Gestor de Projeto, Editor de Video, Gestor de Trafego, Comercial, Design) |
+| Prazo | Date |
+| Cliente | Select |
+| Descricao | Rich text |
+| Prioridade | Select (Alta, Media, Baixa) |
+| Status | Status (A Fazer, Em Andamento, Concluido) |
+| Reuniao de Origem | URL |
+| Data da Reuniao | Date |
+| Confianca IA | Select (Alta, Media, Baixa) |
+
+## Configuracao do TLDV
+
+1. Obtenha sua API key em https://tldv.io
+2. Configure o webhook para: `https://seu-app.railway.app/api/webhooks/tldv`
+
+## API Routes
+
+| Metodo | Rota | Descricao |
+|---|---|---|
+| GET | /api/meetings | Listar reunioes |
+| GET | /api/meetings/:id | Detalhes da reuniao |
+| GET | /api/meetings/:id/tasks | Tarefas da reuniao |
+| POST | /api/fetch-meeting | Buscar reuniao do TLDV |
+| GET | /api/tasks | Listar tarefas |
+| PATCH | /api/tasks | Atualizar tarefa |
+| POST | /api/tasks/approve | Aprovar/descartar tarefas |
+| POST | /api/tasks/publish | Publicar no Notion |
+| POST | /api/webhooks/tldv | Webhook do TLDV |
+| GET | /api/health | Health check |

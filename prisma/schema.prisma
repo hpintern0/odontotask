@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Meeting {
+  id            String        @id @default(cuid())
+  tldvId        String        @unique
+  title         String
+  date          DateTime
+  participants  String[]
+  transcriptRaw String        @db.Text
+  tldvUrl       String?
+  status        MeetingStatus @default(PENDING)
+  processedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  tasks         Task[]
+}
+
+model Task {
+  id              String      @id @default(cuid())
+  meetingId       String
+  meeting         Meeting     @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  titulo          String
+  descricao       String      @db.Text
+  responsavel     Responsavel
+  prazo           DateTime?
+  prazoBruto      String?
+  cliente         String
+  prioridade      Prioridade  @default(media)
+  status          TaskStatus  @default(PENDING_REVIEW)
+  trechoReuniao   String      @db.Text
+  confiancaIA     Confianca
+  notionPageId    String?
+  notionUrl       String?
+  supervisorNotes String?
+  approvedAt      DateTime?
+  publishedAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([meetingId])
+  @@index([status])
+  @@index([responsavel])
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  aliases   String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum MeetingStatus {
+  PENDING
+  PROCESSING
+  PENDING_REVIEW
+  PARTIALLY_APPROVED
+  APPROVED
+  PUBLISHED
+}
+
+enum TaskStatus {
+  PENDING_REVIEW
+  APPROVED
+  DISCARDED
+  PUBLISHED
+  FAILED
+}
+
+enum Responsavel {
+  estrategista
+  gestor_de_projeto
+  editor_de_video
+  gestor_de_trafego
+  comercial
+  design
+}
+
+enum Prioridade {
+  alta
+  media
+  baixa
+}
+
+enum Confianca {
+  alta
+  media
+  baixa
+}

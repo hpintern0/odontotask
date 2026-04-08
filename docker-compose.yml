@@ -1,0 +1,19 @@
+# Docker Compose para desenvolvimento local apenas
+# Em produção, usar Railway PostgreSQL addon
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: odontotask
+      POSTGRES_PASSWORD: odontotask_dev
+      POSTGRES_DB: odontotask
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
